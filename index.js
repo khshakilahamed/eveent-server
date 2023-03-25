@@ -28,6 +28,14 @@ async function run() {
             res.send(hotels);
         });
 
+        app.get('/user/:email', async (req, res) => {
+            const email = req.params.email;
+            const query = { email };
+            const user = await usersCollection.findOne(query, { projection: { role: 1 } });
+
+            res.send(user);
+        })
+
         app.post('/users', async (req, res) => {
             const usersInfo = req.body;
             // console.log(usersInfo);
@@ -36,21 +44,32 @@ async function run() {
             res.send(result);
         })
 
+        app.put('/users', async (req, res) => {
+            const userInfo = req.body;
+            const filter = { email: userInfo.email };
+            const options = { upsert: true };
+            const updatedDoc = {
+                $set: {
+                    ...userInfo
+                }
+            };
+            const result = await usersCollection.updateOne(filter, updatedDoc, options);
+            res.send(result);
+
+        })
+
         app.put('/user', async (req, res) => {
             const email = req.query.email;
             const userInfo = req.body;
             const filter = { email };
             const options = { upsert: true };
-
             const updatedDoc = {
                 $set: {
                     ...userInfo
                 }
             }
-
             const result = await usersCollection.updateOne(filter, updatedDoc, options);
 
-            console.log(result);
             res.send(result);
         })
 
