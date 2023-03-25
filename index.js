@@ -18,6 +18,7 @@ async function run() {
     try {
         const database = client.db("eveent");
         const hotelsCollection = database.collection('hotels');
+        const usersCollection = database.collection('users');
 
         app.get('/hotels', async (req, res) => {
             const query = {};
@@ -25,6 +26,32 @@ async function run() {
             const hotels = await hotelsCollection.find(query).toArray();
 
             res.send(hotels);
+        });
+
+        app.post('/users', async (req, res) => {
+            const usersInfo = req.body;
+            // console.log(usersInfo);
+            const result = await usersCollection.insertOne(usersInfo);
+
+            res.send(result);
+        })
+
+        app.put('/user', async (req, res) => {
+            const email = req.query.email;
+            const userInfo = req.body;
+            const filter = { email };
+            const options = { upsert: true };
+
+            const updatedDoc = {
+                $set: {
+                    ...userInfo
+                }
+            }
+
+            const result = await usersCollection.updateOne(filter, updatedDoc, options);
+
+            console.log(result);
+            res.send(result);
         })
 
     } finally {
