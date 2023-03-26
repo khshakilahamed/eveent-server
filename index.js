@@ -22,11 +22,33 @@ async function run() {
 
         app.get('/hotels', async (req, res) => {
             const query = {};
-
             const hotels = await hotelsCollection.find(query).toArray();
 
             res.send(hotels);
         });
+
+        // update search with date
+        app.get('/hotels/search', async (req, res) => {
+            const {location} = req.query;
+            const query = {};
+            const hotels = await hotelsCollection.find(query).toArray();
+            const searchResult = hotels.filter(hotel => hotel.location.toLowerCase().includes(location.toLocaleLowerCase()));
+
+            res.send(searchResult);
+        });
+        // app.get('/users', async (req, res) => {
+        //     const query = {};
+        //     const users = await usersCollection.find(query).toArray();
+
+        //     res.send(users);
+        // });
+
+        app.post('/hotels', async (req, res) => {
+            const hotelInfo = req.body;
+            const result = await hotelsCollection.insertOne(hotelInfo);
+
+            res.send(result);
+        })
 
         app.get('/user/:email', async (req, res) => {
             const email = req.params.email;
