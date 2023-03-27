@@ -1,6 +1,6 @@
 const express = require('express');
 const cors = require('cors');
-const { MongoClient, ServerApiVersion } = require('mongodb');
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 require('dotenv').config();
 const port = process.env.PORT || 5000;
 
@@ -19,6 +19,7 @@ async function run() {
         const database = client.db("eveent");
         const hotelsCollection = database.collection('hotels');
         const usersCollection = database.collection('users');
+        const bookingsCollection = database.collection('bookings');
 
         app.get('/hotels', async (req, res) => {
             const query = {};
@@ -29,19 +30,38 @@ async function run() {
 
         // update search with date
         app.get('/hotels/search', async (req, res) => {
-            const {location} = req.query;
+            const { location } = req.query;
             const query = {};
             const hotels = await hotelsCollection.find(query).toArray();
             const searchResult = hotels.filter(hotel => hotel.location.toLowerCase().includes(location.toLocaleLowerCase()));
 
             res.send(searchResult);
         });
+
+        app.get('/hotel/details/:id', async (req, res) => {
+            const { id } = req.params;
+            const filter = { _id: new ObjectId(id) };
+
+            const hotel = await hotelsCollection.findOne(filter);
+
+            res.send(hotel);
+        });
+
         // app.get('/users', async (req, res) => {
         //     const query = {};
         //     const users = await usersCollection.find(query).toArray();
 
         //     res.send(users);
         // });
+
+        app.get('/user/:email', async (req, res) => {
+            const email = req.params.email;
+            const query = { email };
+            // const user = await usersCollection.findOne(query, { projection: { role: 1 } });
+            const user = await usersCollection.findOne(query);
+
+            res.send(user);
+        });
 
         app.post('/hotels', async (req, res) => {
             const hotelInfo = req.body;
@@ -50,18 +70,40 @@ async function run() {
             res.send(result);
         })
 
-        app.get('/user/:email', async (req, res) => {
-            const email = req.params.email;
-            const query = { email };
-            const user = await usersCollection.findOne(query, { projection: { role: 1 } });
-
-            res.send(user);
-        })
-
         app.post('/users', async (req, res) => {
             const usersInfo = req.body;
             // console.log(usersInfo);
             const result = await usersCollection.insertOne(usersInfo);
+
+            res.send(result);
+        });
+
+        app.post('/bookings', async (req, res) => {
+            const bookingInfo = req.body;
+            const {email, date} = bookingInfo;
+            const query = {
+                email: bookingInfo.email,
+                date: bookingInfo.date,
+            }
+            const dateQuery = {
+                date: bookingInfo.date
+            }
+
+            const alreadyBooked = await bookingsCollection.find(query).toArray();
+            
+            if(alreadyBooked.length){
+                const message = `You already have a booking on this day at ${alreadyBooked[0].hotelName}`;
+                return res.send({ acknowledged: false, message })
+            };
+
+            const alreadyBookedOnThisDay = await bookingsCollection.find(dateQuery).toArray();
+            if(alreadyBookedOnThisDay.length){
+                const message = `${bookingInfo.hotelName} is already booked on this day`;
+                return res.send({ acknowledged: false, message })
+            };
+
+
+            const result = await bookingsCollection.insertOne(bookingInfo);
 
             res.send(result);
         })
