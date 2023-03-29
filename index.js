@@ -47,12 +47,12 @@ async function run() {
             res.send(hotel);
         });
 
-        // app.get('/users', async (req, res) => {
-        //     const query = {};
-        //     const users = await usersCollection.find(query).toArray();
+        app.get('/users', async (req, res) => {
+            const query = {};
+            const users = await usersCollection.find(query).toArray();
 
-        //     res.send(users);
-        // });
+            res.send(users);
+        });
 
         app.get('/user/:email', async (req, res) => {
             const email = req.params.email;
@@ -61,6 +61,21 @@ async function run() {
             const user = await usersCollection.findOne(query);
 
             res.send(user);
+        });
+
+        app.get('/bookings', async (req, res) => {
+            const query = {};
+            const bookings = await bookingsCollection.find(query).toArray();
+
+            res.send(bookings);
+        });
+
+        app.get('/bookings/:email', async (req, res) => {
+            const email = req.params.email;
+            const query = { email };
+            const bookings = await bookingsCollection.find(query).toArray();
+
+            res.send(bookings);
         });
 
         app.post('/hotels', async (req, res) => {
@@ -80,7 +95,7 @@ async function run() {
 
         app.post('/bookings', async (req, res) => {
             const bookingInfo = req.body;
-            const {email, date} = bookingInfo;
+            const { email, date } = bookingInfo;
             const query = {
                 email: bookingInfo.email,
                 date: bookingInfo.date,
@@ -90,14 +105,14 @@ async function run() {
             }
 
             const alreadyBooked = await bookingsCollection.find(query).toArray();
-            
-            if(alreadyBooked.length){
+
+            if (alreadyBooked.length) {
                 const message = `You already have a booking on this day at ${alreadyBooked[0].hotelName}`;
                 return res.send({ acknowledged: false, message })
             };
 
             const alreadyBookedOnThisDay = await bookingsCollection.find(dateQuery).toArray();
-            if(alreadyBookedOnThisDay.length){
+            if (alreadyBookedOnThisDay.length) {
                 const message = `${bookingInfo.hotelName} is already booked on this day`;
                 return res.send({ acknowledged: false, message })
             };
@@ -133,6 +148,14 @@ async function run() {
                 }
             }
             const result = await usersCollection.updateOne(filter, updatedDoc, options);
+
+            res.send(result);
+        });
+
+        app.delete('/booking/:id', async (req, res) => {
+            const id = req.params.id;
+            const query = { _id: new ObjectId(id) };
+            const result = await bookingsCollection.deleteOne(query);
 
             res.send(result);
         })
