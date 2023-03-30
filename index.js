@@ -47,6 +47,14 @@ async function run() {
             res.send(hotel);
         });
 
+        app.get('/hotel/bookings/:email', async (req, res) => {
+            const { email } = req.params;
+            const filter = { hotelEmail: email };
+            const bookings = await bookingsCollection.find(filter).toArray();
+
+            res.send(bookings);
+        })
+
         app.get('/users', async (req, res) => {
             const query = {};
             const users = await usersCollection.find(query).toArray();
@@ -96,12 +104,23 @@ async function run() {
         app.post('/bookings', async (req, res) => {
             const bookingInfo = req.body;
             const { email, date } = bookingInfo;
+
+            const adminQuery = { email: email };
+
             const query = {
-                email: bookingInfo.email,
-                date: bookingInfo.date,
+                email: email,
+                date: date,
             }
             const dateQuery = {
                 date: bookingInfo.date
+            }
+
+            const hallAdmin = await hotelsCollection.findOne(adminQuery);
+
+
+            if (hallAdmin.email === email) {
+                const message = `Hotel Admin can not make booking`;
+                return res.send({ acknowledged: false, message })
             }
 
             const alreadyBooked = await bookingsCollection.find(query).toArray();
@@ -145,6 +164,24 @@ async function run() {
             const updatedDoc = {
                 $set: {
                     ...userInfo
+                }
+            }
+            const result = await usersCollection.updateOne(filter, updatedDoc, options);
+
+            res.send(result);
+        });
+
+        app.put('/user/makeAdmin/:id/:email', async (req, res) => {
+            const { id, email } = req.params;
+
+            const filter = {
+                _id: new ObjectId(id),
+                email: email
+            };
+            const options = { upsert: true };
+            const updatedDoc = {
+                $set: {
+                    role: 'admin'
                 }
             }
             const result = await usersCollection.updateOne(filter, updatedDoc, options);
