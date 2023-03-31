@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 require('dotenv').config();
+const jwt = require('jsonwebtoken');
 const port = process.env.PORT || 5000;
 
 const app = express();
@@ -13,6 +14,29 @@ app.use(express.json());
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.nqxgtvl.mongodb.net/?retryWrites=true&w=majority`;
 const client = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology: true, serverApi: ServerApiVersion.v1 });
+
+
+function verifyJWT(req, res, next) {
+    const authHeader = req.headers.authorization;
+
+    // console.log(authHeader);
+
+    if (!authHeader) {
+        res.status(401).send("Unauthorized access");
+    }
+
+    const token = authHeader.split(' ')[1];
+
+    jwt.verify(token, process.env.ACCESS_TOKEN, function (err, decoded) {
+        if (err) {
+            return res.status(403).send({ message: 'forbidden access' });
+        }
+        req.decoded = decoded;
+        next();
+    })
+
+}
+
 
 async function run() {
     try {
@@ -38,6 +62,20 @@ async function run() {
             res.send(searchResult);
         });
 
+        app.get('/bookings/:email', verifyJWT, async (req, res) => {
+            const email = req.params.email;
+            const decodedEmail = req.decoded.email;
+
+            if (email !== decodedEmail) {
+                return res.status(403).send({ message: 'forbidden access' });
+            }
+            // console.log(req.headers.authorization);
+            const query = { email };
+            const bookings = await bookingsCollection.find(query).toArray();
+
+            res.send(bookings);
+        });
+
         app.get('/hotel/details/:id', async (req, res) => {
             const { id } = req.params;
             const filter = { _id: new ObjectId(id) };
@@ -47,7 +85,14 @@ async function run() {
             res.send(hotel);
         });
 
-        app.get('/hotel/bookings/:email', async (req, res) => {
+        app.get('/hotel/bookings/:email', verifyJWT, async (req, res) => {
+            const decodedEmail = req.decoded.email;
+            const query = { email: decodedEmail };
+            const user = await usersCollection.findOne(query);
+            if (user?.role !== 'hotelAdmin') {
+                return res.status(403).send({ message: 'forbidden access' });
+            }
+
             const { email } = req.params;
             const filter = { hotelEmail: email };
             const bookings = await bookingsCollection.find(filter).toArray();
@@ -55,42 +100,70 @@ async function run() {
             res.send(bookings);
         })
 
-        app.get('/users', async (req, res) => {
-            const query = {};
-            const users = await usersCollection.find(query).toArray();
+        app.get('/users', verifyJWT, async (req, res) => {
+            const decodedEmail = req.decoded.email;
+            const query = { email: decodedEmail };
+            const user = await usersCollection.findOne(query);
+            if (user?.role !== 'admin') {
+                return res.status(403).send({ message: 'forbidden access' });
+            }
+            const filter = {};
+            const users = await usersCollection.find(filter).toArray();
 
             res.send(users);
         });
 
         app.get('/user/:email', async (req, res) => {
+            // const decodedEmail = req.decoded.email;
+            // const query = { email: decodedEmail };
+            
+            // const verifyUser = await usersCollection.findOne(query);
+            
+            // if (verifyUser?.role !== 'admin' || verifyUser?.role !== 'hotelAdmin' || decodedEmail !== email) {
+            //     return res.status(403).send({ message: 'forbidden access' });
+            // }
+            
             const email = req.params.email;
-            const query = { email };
+            const filter = { email };
             // const user = await usersCollection.findOne(query, { projection: { role: 1 } });
-            const user = await usersCollection.findOne(query);
+            const user = await usersCollection.findOne(filter);
 
             res.send(user);
         });
 
-        app.get('/bookings', async (req, res) => {
-            const query = {};
-            const bookings = await bookingsCollection.find(query).toArray();
+        app.get('/bookings', verifyJWT, async (req, res) => {
+            const decodedEmail = req.decoded.email;
+            const query = { email: decodedEmail };
+
+            const user = await usersCollection.findOne(query);
+
+            if (user?.role !== 'admin') {
+                return res.status(403).send({ message: 'forbidden access' });
+            }
+
+            const filter = {};
+            const bookings = await bookingsCollection.find(filter).toArray();
 
             res.send(bookings);
         });
 
-        app.get('/bookings/:email', async (req, res) => {
-            const email = req.params.email;
-            const query = { email };
-            const bookings = await bookingsCollection.find(query).toArray();
-
-            res.send(bookings);
-        });
 
         app.post('/hotels', async (req, res) => {
             const hotelInfo = req.body;
             const result = await hotelsCollection.insertOne(hotelInfo);
 
             res.send(result);
+        });
+
+        app.get('/jwt', async (req, res) => {
+            const email = req.query.email;
+            const query = { email: email };
+            const user = await usersCollection.findOne(query);
+            if (user && user.email == email) {
+                const token = jwt.sign({ email }, process.env.ACCESS_TOKEN, { expiresIn: '1h' });
+                return res.send({ accessToken: token });
+            }
+            res.status(403).send({ accessToken: '' });
         })
 
         app.post('/users', async (req, res) => {
@@ -101,7 +174,7 @@ async function run() {
             res.send(result);
         });
 
-        app.post('/bookings', async (req, res) => {
+        app.post('/bookings', verifyJWT, async (req, res) => {
             const bookingInfo = req.body;
             const { email, date } = bookingInfo;
 
@@ -118,7 +191,7 @@ async function run() {
             const hallAdmin = await hotelsCollection.findOne(adminQuery);
 
 
-            if (hallAdmin.email === email) {
+            if (hallAdmin?.email === email) {
                 const message = `Hotel Admin can not make booking`;
                 return res.send({ acknowledged: false, message })
             }
@@ -171,7 +244,15 @@ async function run() {
             res.send(result);
         });
 
-        app.put('/user/makeAdmin/:id/:email', async (req, res) => {
+        app.put('/user/makeAdmin/:id/:email', verifyJWT, async (req, res) => {
+            const decodedEmail = req.decoded.email;
+            const query = { email: decodedEmail };
+            const user = await usersCollection.findOne({ query });
+
+            if (user?.role !== 'admin') {
+                res.status(403).send({ message: 'forbidden access' });
+            }
+
             const { id, email } = req.params;
 
             const filter = {
