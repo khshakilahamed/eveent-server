@@ -198,6 +198,13 @@ async function run() {
                 return res.send({ acknowledged: false, message })
             }
 
+            const admin = await usersCollection.findOne(adminQuery);
+
+            if (admin?.role === 'admin') {
+                const message = `Admin can not make booking`;
+                return res.send({ acknowledged: false, message })
+            }
+
             const alreadyBooked = await bookingsCollection.find(query).toArray();
 
             if (alreadyBooked.length) {
@@ -245,6 +252,28 @@ async function run() {
 
             res.send(result);
         });
+
+        app.put('/user/upload-profile-img', verifyJWT, async (req, res) => {
+            const decodedEmail = req.decoded.email;
+            const profileData = req.body;
+            const query = { email: decodedEmail };
+
+            const filter = { email: decodedEmail };
+            const options = { upsert: true };
+            const updatedDoc = {
+                $set: {
+                    ...profileData
+                }
+            }
+
+            const user = await usersCollection.findOne(query);
+            if (user.length === 0) {
+                res.status(403).send({ message: 'forbidden access' });
+            }
+
+            const result = await usersCollection.updateOne(filter, updatedDoc, options);
+            res.send(result);
+        })
 
         app.put('/user/makeAdmin/:id/:email', verifyJWT, async (req, res) => {
             const decodedEmail = req.decoded.email;
