@@ -149,6 +149,24 @@ async function run() {
             res.send(bookings);
         });
 
+        app.get('/myHotel', verifyJWT, async (req, res) => {
+            const decodedEmail = req.decoded.email;
+            const query = { email: decodedEmail };
+
+            const user = await usersCollection.findOne(query);
+
+            // console.log(user);
+
+            if (user?.role !== 'hotelAdmin') {
+                return res.status(403).send({ message: 'forbidden access' });
+            }
+
+            const filter = {email: decodedEmail};
+            const bookings = await hotelsCollection.findOne(filter);
+
+            res.send(bookings);
+        });
+
 
         app.post('/hotels', async (req, res) => {
             const hotelInfo = req.body;
